@@ -8,6 +8,7 @@ export interface Item {
   title: string;
   description: string;
   image: string;
+  images?: string[]; // Multiple images support
   securityDeposit?: number;
   status: "available" | "claimed";
   claimedBy?: string;

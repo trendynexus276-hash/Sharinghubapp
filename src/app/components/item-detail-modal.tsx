@@ -9,7 +9,16 @@ import {
 } from "./ui/dialog";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { MessageCircle, User } from "lucide-react";
+import { MessageCircle, User, Share2, Check } from "lucide-react";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "./ui/carousel";
+import { useState } from "react";
+import { toast } from "sonner";
 
 interface ItemDetailModalProps {
   item: Item | null;
@@ -52,11 +61,97 @@ export function ItemDetailModal({
   if (!item) return null;
 
   const isOwnItem = item.uploaderEmail === currentUserEmail;
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const handleClaim = () => {
     onClaim(item.id);
     onClose();
   };
+
+  const handleShareLink = () => {
+    const shareUrl = `${window.location.origin}?item=${item.id}`;
+    const shareTitle = `Check out this item: ${item.title}`;
+    const shareText = `${item.title} - ${item.description.substring(0, 100)}... View on Sharing Hub: ${shareUrl}`;
+    
+    // Try Web Share API first (supports native sharing on mobile to WhatsApp, Gmail, etc.)
+    if (navigator.share) {
+      navigator.share({
+        title: shareTitle,
+        text: shareText,
+        url: shareUrl,
+      })
+        .then(() => {
+          toast.success("Shared successfully!");
+        })
+        .catch((error) => {
+          // User cancelled or error occurred, try clipboard fallback
+          if (error.name !== 'AbortError') {
+            copyToClipboard(shareUrl);
+          }
+        });
+    } else {
+      // Fallback to clipboard copy for desktop
+      copyToClipboard(shareUrl);
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    // Method 1: Try modern clipboard API
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text)
+        .then(() => {
+          setLinkCopied(true);
+          toast.success("Link copied to clipboard!");
+          setTimeout(() => setLinkCopied(false), 2000);
+        })
+        .catch(() => {
+          // Fallback to execCommand
+          fallbackCopy(text);
+        });
+    } else {
+      // Use fallback directly
+      fallbackCopy(text);
+    }
+  };
+
+  const fallbackCopy = (text: string) => {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    
+    // Make the textarea out of viewport
+    textArea.style.position = "fixed";
+    textArea.style.left = "-999999px";
+    textArea.style.top = "-999999px";
+    textArea.setAttribute('readonly', '');
+    
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    
+    try {
+      const successful = document.execCommand('copy');
+      if (successful) {
+        setLinkCopied(true);
+        toast.success("Link copied to clipboard!");
+        setTimeout(() => setLinkCopied(false), 2000);
+      } else {
+        // Show the link for manual copy
+        toast.info("Copy this link: " + text, {
+          duration: 10000,
+        });
+      }
+    } catch (err) {
+      // Show the link for manual copy
+      toast.info("Copy this link: " + text, {
+        duration: 10000,
+      });
+    }
+    
+    document.body.removeChild(textArea);
+  };
+
+  // Get images array (support both old single image and new multiple images)
+  const images = item.images && item.images.length > 0 ? item.images : [item.image];
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -72,13 +167,54 @@ export function ItemDetailModal({
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Image */}
-          <div className="w-full h-72 rounded-lg overflow-hidden">
-            <img
-              src={item.image}
-              alt={item.title}
-              className="w-full h-full object-cover"
-            />
+          {/* Image Carousel */}
+          {images.length > 1 ? (
+            <Carousel className="w-full">
+              <CarouselContent>
+                {images.map((image, index) => (
+                  <CarouselItem key={index}>
+                    <div className="w-full h-72 rounded-lg overflow-hidden">
+                      <img
+                        src={image}
+                        alt={`${item.title} - Image ${index + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  </CarouselItem>
+                ))}
+              </CarouselContent>
+              <CarouselPrevious className="left-2" />
+              <CarouselNext className="right-2" />
+            </Carousel>
+          ) : (
+            <div className="w-full h-72 rounded-lg overflow-hidden">
+              <img
+                src={images[0]}
+                alt={item.title}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          )}
+
+          {/* Share Button */}
+          <div className="flex justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleShareLink}
+            >
+              {linkCopied ? (
+                <>
+                  <Check className="h-4 w-4 mr-2" />
+                  Copied!
+                </>
+              ) : (
+                <>
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Share Link
+                </>
+              )}
+            </Button>
           </div>
 
           {/* Uploader Info */}

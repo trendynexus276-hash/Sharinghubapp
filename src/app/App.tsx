@@ -7,10 +7,11 @@ import { AddItemForm } from "./components/add-item-form";
 import { ItemCard, type Item } from "./components/item-card";
 import { ItemDetailModal } from "./components/item-detail-modal";
 import { ChatDialog, type Chat, type ChatMessage } from "./components/chat-dialog";
-import { Plus, Package, ArrowLeft, MessageCircle } from "lucide-react";
+import { Plus, Package, ArrowLeft, MessageCircle, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "./components/ui/sonner";
 import { Badge } from "./components/ui/badge";
+import { Input } from "./components/ui/input";
 
 type Screen = "login" | "selection" | "content" | "chatlist";
 type Category = "donate" | "rent" | "borrow" | "swap";
@@ -83,6 +84,30 @@ export default function App() {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Load user session from localStorage on mount
+  useEffect(() => {
+    const savedUser = localStorage.getItem("sharingHubCurrentUser");
+    if (savedUser) {
+      try {
+        const user = JSON.parse(savedUser);
+        setCurrentUser(user);
+        setCurrentScreen("selection");
+      } catch (e) {
+        console.error("Failed to load user session", e);
+      }
+    }
+  }, []);
+
+  // Save user session to localStorage whenever it changes
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem("sharingHubCurrentUser", JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem("sharingHubCurrentUser");
+    }
+  }, [currentUser]);
 
   // Load chats from localStorage on mount
   useEffect(() => {
@@ -282,8 +307,15 @@ export default function App() {
       chat.participants.requester.email === currentUser?.email
   );
 
+  // Filter items by category and search query
   const filteredItems = selectedCategory
-    ? items.filter((item) => item.type === selectedCategory)
+    ? items.filter((item) => {
+        const matchesCategory = item.type === selectedCategory;
+        const matchesSearch = searchQuery === "" || 
+          item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          item.description.toLowerCase().includes(searchQuery.toLowerCase());
+        return matchesCategory && matchesSearch;
+      })
     : [];
 
   const tabConfig = {
@@ -438,6 +470,20 @@ export default function App() {
             </Button>
           </div>
 
+          {/* Search Bar - Only show in browse view */}
+          {view === "browse" && (
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search items by title or description..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          )}
+
           {/* Content */}
           {view === "browse" ? (
             filteredItems.length > 0 ? (
@@ -453,14 +499,20 @@ export default function App() {
             ) : (
               <div className="text-center py-12 border-2 border-dashed rounded-lg">
                 <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="mb-2">No items yet</h3>
+                <h3 className="mb-2">
+                  {searchQuery ? "No items found" : "No items yet"}
+                </h3>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Be the first to add an item!
+                  {searchQuery
+                    ? `No items match \"${searchQuery}\". Try a different search term.`
+                    : "Be the first to add an item!"}
                 </p>
-                <Button onClick={() => setView("add")}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Item
-                </Button>
+                {!searchQuery && (
+                  <Button onClick={() => setView("add")}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Item
+                  </Button>
+                )}
               </div>
             )
           ) : (

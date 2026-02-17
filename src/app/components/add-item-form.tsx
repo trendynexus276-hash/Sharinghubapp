@@ -12,6 +12,7 @@ interface AddItemFormProps {
     title: string;
     description: string;
     image: string;
+    images?: string[];
     securityDeposit?: number;
   }) => void;
 }
@@ -34,27 +35,42 @@ export function AddItemForm({ type, onSubmit }: AddItemFormProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [securityDeposit, setSecurityDeposit] = useState("");
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+  const handleImagesUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      const previews: string[] = [];
+      let processed = 0;
+      
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          previews.push(reader.result as string);
+          processed++;
+          if (processed === files.length) {
+            setImagePreviews([...imagePreviews, ...previews]);
+          }
+        };
+        reader.readAsDataURL(file);
+      }
     }
+  };
+
+  const removeImage = (index: number) => {
+    setImagePreviews(imagePreviews.filter((_, i) => i !== index));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !description || !imagePreview) return;
+    if (!title || !description || imagePreviews.length === 0) return;
 
     onSubmit({
       title,
       description,
-      image: imagePreview,
+      image: imagePreviews[0], // First image as primary
+      images: imagePreviews,
       ...(type === "rent" && securityDeposit
         ? { securityDeposit: parseFloat(securityDeposit) }
         : {}),
@@ -64,7 +80,7 @@ export function AddItemForm({ type, onSubmit }: AddItemFormProps) {
     setTitle("");
     setDescription("");
     setSecurityDeposit("");
-    setImagePreview(null);
+    setImagePreviews([]);
   };
 
   return (
@@ -79,39 +95,66 @@ export function AddItemForm({ type, onSubmit }: AddItemFormProps) {
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Image Upload */}
           <div className="space-y-2">
-            <Label htmlFor="image">Item Photo *</Label>
-            {imagePreview ? (
-              <div className="relative w-full h-64 rounded-lg overflow-hidden border">
-                <img
-                  src={imagePreview}
-                  alt="Preview"
-                  className="w-full h-full object-cover"
-                />
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="icon"
-                  className="absolute top-2 right-2"
-                  onClick={() => setImagePreview(null)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
+            <Label htmlFor="images">Item Photos *</Label>
+            {imagePreviews.length > 0 ? (
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  {imagePreviews.map((preview, index) => (
+                    <div
+                      key={index}
+                      className="relative w-24 h-24 rounded-lg overflow-hidden border"
+                    >
+                      <img
+                        src={preview}
+                        alt={`Preview ${index + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="icon"
+                        className="absolute top-1 right-1 h-6 w-6"
+                        onClick={() => removeImage(index)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                  <label
+                    htmlFor="images"
+                    className="flex items-center justify-center w-24 h-24 border-2 border-dashed rounded-lg cursor-pointer hover:bg-accent transition-colors"
+                  >
+                    <Upload className="h-6 w-6 text-muted-foreground" />
+                    <input
+                      id="images"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      multiple
+                      onChange={handleImagesUpload}
+                    />
+                  </label>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {imagePreviews.length} photo{imagePreviews.length !== 1 ? "s" : ""} uploaded
+                </p>
               </div>
             ) : (
               <label
-                htmlFor="image"
+                htmlFor="images"
                 className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-lg cursor-pointer hover:bg-accent transition-colors"
               >
                 <Upload className="h-12 w-12 text-muted-foreground mb-4" />
                 <p className="text-sm text-muted-foreground">
-                  Click to upload image
+                  Click to upload images (multiple allowed)
                 </p>
                 <input
-                  id="image"
+                  id="images"
                   type="file"
                   accept="image/*"
                   className="hidden"
-                  onChange={handleImageUpload}
+                  multiple
+                  onChange={handleImagesUpload}
                 />
               </label>
             )}

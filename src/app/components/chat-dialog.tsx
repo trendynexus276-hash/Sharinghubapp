@@ -78,6 +78,24 @@ export function ChatDialog({
       .slice(0, 2);
   };
 
+  // Determine font family based on user role
+  const getUserFontClass = (senderId: string) => {
+    // Uploader uses serif font, Requester uses sans-serif font
+    if (senderId === chat.participants.uploader.email) {
+      return "font-serif"; // Elegant serif font for uploader
+    } else {
+      return "font-sans"; // Clean sans-serif font for requester
+    }
+  };
+
+  const getUserName = (senderId: string) => {
+    if (senderId === chat.participants.uploader.email) {
+      return chat.participants.uploader.name;
+    } else {
+      return chat.participants.requester.name;
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl h-[600px] flex flex-col p-0">
@@ -86,12 +104,21 @@ export function ChatDialog({
             <Avatar>
               <AvatarFallback>{getInitials(otherUser.name)}</AvatarFallback>
             </Avatar>
-            <div>
+            <div className="flex-1">
               <DialogTitle>{otherUser.name}</DialogTitle>
               <DialogDescription>
                 About: {chat.itemTitle}
               </DialogDescription>
             </div>
+          </div>
+          {/* Font Legend */}
+          <div className="mt-3 pt-3 border-t text-xs text-muted-foreground space-y-1">
+            <p className="font-serif">
+              ✦ {chat.participants.uploader.name} (Serif font - Item Owner)
+            </p>
+            <p className="font-sans">
+              ✦ {chat.participants.requester.name} (Sans-serif font - Requester)
+            </p>
           </div>
         </DialogHeader>
 
@@ -105,13 +132,17 @@ export function ChatDialog({
             ) : (
               chat.messages.map((msg) => {
                 const isCurrentUser = msg.senderId === currentUserEmail;
+                const fontClass = getUserFontClass(msg.senderId);
                 return (
                   <div
                     key={msg.id}
-                    className={`flex ${
-                      isCurrentUser ? "justify-end" : "justify-start"
+                    className={`flex flex-col ${
+                      isCurrentUser ? "items-end" : "items-start"
                     }`}
                   >
+                    <span className="text-xs text-muted-foreground mb-1 px-1">
+                      {getUserName(msg.senderId)}
+                    </span>
                     <div
                       className={`max-w-[70%] ${
                         isCurrentUser
@@ -119,7 +150,7 @@ export function ChatDialog({
                           : "bg-muted"
                       } rounded-lg px-4 py-2`}
                     >
-                      <p className="text-sm">{msg.message}</p>
+                      <p className={`text-sm ${fontClass}`}>{msg.message}</p>
                       <p
                         className={`text-xs mt-1 ${
                           isCurrentUser
