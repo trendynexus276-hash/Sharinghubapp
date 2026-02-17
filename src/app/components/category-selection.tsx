@@ -1,7 +1,10 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
+import { useState } from "react";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "./ui/card";
 import { Button } from "./ui/button";
-import { Package, Gift, Repeat, HandHelping, BadgeDollarSign, LogOut, MessageCircle } from "lucide-react";
+import { Package, Gift, Coins, ArrowLeftRight, Repeat, MessageCircle, LogOut, Bug } from "lucide-react";
 import { Badge } from "./ui/badge";
+import * as api from "../services/api";
+import { toast } from "sonner";
 
 interface CategorySelectionProps {
   userName: string;
@@ -24,7 +27,7 @@ const categories = [
     id: "rent" as const,
     title: "Rent",
     description: "Rent items with security deposit",
-    icon: BadgeDollarSign,
+    icon: Coins,
     color: "bg-blue-500 hover:bg-blue-600",
     lightColor: "bg-blue-50 dark:bg-blue-950",
   },
@@ -32,7 +35,7 @@ const categories = [
     id: "borrow" as const,
     title: "Borrow",
     description: "Request to borrow items from others",
-    icon: HandHelping,
+    icon: ArrowLeftRight,
     color: "bg-purple-500 hover:bg-purple-600",
     lightColor: "bg-purple-50 dark:bg-purple-950",
   },

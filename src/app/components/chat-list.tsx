@@ -33,13 +33,13 @@ export function ChatList({
   };
 
   const getLastMessage = (chat: Chat) => {
-    if (chat.messages.length === 0) return "No messages yet";
+    if (!chat.messages || chat.messages.length === 0) return "No messages yet";
     const lastMsg = chat.messages[chat.messages.length - 1];
     return lastMsg.message;
   };
 
   const getLastMessageTime = (chat: Chat) => {
-    if (chat.messages.length === 0) return "";
+    if (!chat.messages || chat.messages.length === 0) return "";
     const lastMsg = chat.messages[chat.messages.length - 1];
     const date = new Date(lastMsg.timestamp);
     const today = new Date();
@@ -53,6 +53,7 @@ export function ChatList({
   const getUnreadCount = (chat: Chat) => {
     // In a real app, this would track which messages have been read
     // For now, we'll just show if there are messages from the other user
+    if (!chat.messages || chat.messages.length === 0) return 0;
     const lastMessage = chat.messages[chat.messages.length - 1];
     if (lastMessage && lastMessage.senderId !== currentUserEmail) {
       return 1;

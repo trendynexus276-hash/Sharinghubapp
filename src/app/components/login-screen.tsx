@@ -3,8 +3,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { Package, MapPin, AlertCircle } from "lucide-react";
+import { Package, MapPin, AlertCircle, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
+import * as api from "../services/api";
 
 interface LoginScreenProps {
   onLogin: (name: string, email: string) => void;
@@ -17,8 +18,9 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSignup, setIsSignup] = useState(true);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -26,11 +28,6 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
       setError("Email and password are required");
       return;
     }
-
-    // Get existing accounts from localStorage
-    const accountsJson = localStorage.getItem("sharingHubAccounts");
-    const accounts: Array<{ email: string; password: string; name: string }> = 
-      accountsJson ? JSON.parse(accountsJson) : [];
 
     if (isSignup) {
       // Signup validation
@@ -49,36 +46,34 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
         return;
       }
 
-      // Check if email already exists
-      const existingAccount = accounts.find(acc => acc.email.toLowerCase() === email.toLowerCase());
-      if (existingAccount) {
-        setError("An account with this email already exists. Please login instead.");
-        return;
+      // Call API to sign up
+      setLoading(true);
+      try {
+        const response = await api.signUp(email.toLowerCase(), password, name);
+        console.log("Signup successful:", response);
+        
+        // Auto-login after signup
+        const signInResponse = await api.signIn(email.toLowerCase(), password);
+        onLogin(signInResponse.user.name, signInResponse.user.email);
+      } catch (err: any) {
+        console.error("Signup error:", err);
+        setError(err.message || "Failed to create account. Please try again.");
+      } finally {
+        setLoading(false);
       }
-
-      // Create new account
-      const newAccount = { email: email.toLowerCase(), password, name };
-      accounts.push(newAccount);
-      localStorage.setItem("sharingHubAccounts", JSON.stringify(accounts));
-
-      // Login the user
-      onLogin(name, email.toLowerCase());
     } else {
-      // Login validation
-      const account = accounts.find(acc => acc.email.toLowerCase() === email.toLowerCase());
-      
-      if (!account) {
-        setError("No account found with this email. Please sign up first.");
-        return;
+      // Call API to sign in
+      setLoading(true);
+      try {
+        const response = await api.signIn(email.toLowerCase(), password);
+        console.log("Sign in successful:", response);
+        onLogin(response.user.name, response.user.email);
+      } catch (err: any) {
+        console.error("Sign in error:", err);
+        setError(err.message || "Failed to sign in. Please check your credentials.");
+      } finally {
+        setLoading(false);
       }
-
-      if (account.password !== password) {
-        setError("Incorrect password. Please try again.");
-        return;
-      }
-
-      // Login successful
-      onLogin(account.name, account.email);
     }
   };
 
@@ -184,8 +179,15 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
                 </div>
               )}
 
-              <Button type="submit" className="w-full">
-                {isSignup ? "Create Account" : "Sign In"}
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    {isSignup ? "Creating Account..." : "Signing In..."}
+                  </>
+                ) : (
+                  isSignup ? "Create Account" : "Sign In"
+                )}
               </Button>
 
               <div className="text-center">

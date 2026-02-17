@@ -47,12 +47,10 @@ export function ChatDialog({
   onSendMessage,
 }: ChatDialogProps) {
   const [message, setMessage] = useState("");
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chat?.messages]);
 
   if (!chat) return null;
@@ -123,9 +121,9 @@ export function ChatDialog({
         </DialogHeader>
 
         {/* Messages Area */}
-        <ScrollArea className="flex-1 p-6" ref={scrollRef}>
+        <ScrollArea className="flex-1 p-6">
           <div className="space-y-4">
-            {chat.messages.length === 0 ? (
+            {!chat.messages || chat.messages.length === 0 ? (
               <div className="text-center text-muted-foreground py-8">
                 <p>No messages yet. Start the conversation!</p>
               </div>
@@ -168,6 +166,7 @@ export function ChatDialog({
                 );
               })
             )}
+            <div ref={messagesEndRef} />
           </div>
         </ScrollArea>
 

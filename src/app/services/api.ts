@@ -1,9 +1,9 @@
-import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { projectId, publicAnonKey } from "/utils/supabase/info";
 
 const BASE_URL = `https://${projectId}.supabase.co/functions/v1/make-server-506872b3`;
 
-// Store access token
-let accessToken: string | null = null;
+// Store access token in memory and localStorage
+let accessToken: string | null = localStorage.getItem('sharingHubAccessToken');
 
 export function setAccessToken(token: string | null) {
   accessToken = token;
@@ -14,20 +14,28 @@ export function setAccessToken(token: string | null) {
   }
 }
 
-export function getAccessToken(): string | null {
-  if (!accessToken) {
-    accessToken = localStorage.getItem('sharingHubAccessToken');
-  }
+export function getAccessToken() {
   return accessToken;
 }
 
+// Fetch wrapper with authentication
 async function fetchWithAuth(url: string, options: RequestInit = {}) {
   const token = getAccessToken();
+  
+  console.log(`📡 API Request: ${options.method || 'GET'} ${url}`);
+  console.log(`   - Session Token: ${token ? token.substring(0, 20) + '...' : 'none'}`);
+  
   const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token || publicAnonKey}`,
+    "Content-Type": "application/json",
+    // Always send Supabase anon key so Supabase allows the request through
+    "Authorization": `Bearer ${publicAnonKey}`,
     ...options.headers,
   };
+
+  // Send our custom session token for our app's authentication
+  if (token) {
+    headers["X-Session-Token"] = token;
+  }
 
   const response = await fetch(url, {
     ...options,
@@ -35,8 +43,9 @@ async function fetchWithAuth(url: string, options: RequestInit = {}) {
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-    throw new Error(error.error || `HTTP ${response.status}`);
+    const errorText = await response.text();
+    console.error(`❌ API Error: ${response.status}`, errorText);
+    throw new Error(`HTTP ${response.status}`);
   }
 
   return response.json();
@@ -67,6 +76,12 @@ export async function signIn(email: string, password: string) {
 
 export function signOut() {
   setAccessToken(null);
+}
+
+// Debug function to check session
+export async function checkSession() {
+  const data = await fetchWithAuth(`${BASE_URL}/debug/session`);
+  return data;
 }
 
 // ============ ITEMS ============

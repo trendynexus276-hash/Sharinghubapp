@@ -7,11 +7,12 @@ import { AddItemForm } from "./components/add-item-form";
 import { ItemCard, type Item } from "./components/item-card";
 import { ItemDetailModal } from "./components/item-detail-modal";
 import { ChatDialog, type Chat, type ChatMessage } from "./components/chat-dialog";
-import { Plus, Package, ArrowLeft, MessageCircle, Search } from "lucide-react";
+import { Plus, Package, ArrowLeft, MessageCircle, Search, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "./components/ui/sonner";
 import { Badge } from "./components/ui/badge";
 import { Input } from "./components/ui/input";
+import * as api from "./services/api";
 
 type Screen = "login" | "selection" | "content" | "chatlist";
 type Category = "donate" | "rent" | "borrow" | "swap";
@@ -27,129 +28,103 @@ export default function App() {
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [view, setView] = useState<"browse" | "add">("browse");
   
-  const [items, setItems] = useState<Item[]>([
-    {
-      id: "1",
-      type: "donate",
-      title: "IKEA Desk with Chair",
-      description:
-        "Gently used desk and chair set. Perfect for home office. Free to pick up in Kleve city center.",
-      image:
-        "https://images.unsplash.com/photo-1591522810850-58128c5fb089?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmdXJuaXR1cmUlMjBkb25hdGlvbiUyMGl0ZW1zfGVufDF8fHx8MTc3MDM4NzE1N3ww&ixlib=rb-4.1.0&q=80&w=1080",
-      status: "available",
-      uploaderName: "Maria Schmidt",
-      uploaderEmail: "maria.schmidt@example.com",
-    },
-    {
-      id: "2",
-      type: "rent",
-      title: "Mountain Bike",
-      description:
-        "High-quality mountain bike available for rent. Great for exploring Kleve's trails and parks.",
-      image:
-        "https://images.unsplash.com/photo-1684197884209-a81640422fbb?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxiaWN5Y2xlJTIwcmVudCUyMHNoYXJpbmd8ZW58MXx8fHwxNzcwMzg3MTU3fDA&ixlib=rb-4.1.0&q=80&w=1080",
-      securityDeposit: 100,
-      status: "available",
-      uploaderName: "Thomas Mueller",
-      uploaderEmail: "thomas.mueller@example.com",
-    },
-    {
-      id: "3",
-      type: "borrow",
-      title: "Power Drill Set",
-      description:
-        "Looking to borrow a power drill for a weekend DIY project. Will take good care of it!",
-      image:
-        "https://images.unsplash.com/photo-1620825141088-a824daf6a46b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx0b29scyUyMGVxdWlwbWVudCUyMGxlbmRpbmd8ZW58MXx8fHwxNzcwMzg3MTU3fDA&ixlib=rb-4.1.0&q=80&w=1080",
-      status: "available",
-      uploaderName: "Anna Weber",
-      uploaderEmail: "anna.weber@example.com",
-    },
-    {
-      id: "4",
-      type: "swap",
-      title: "German Language Books",
-      description:
-        "Collection of German literature books. Looking to swap for English novels or science books.",
-      image:
-        "https://images.unsplash.com/photo-1760869028228-462a61e21644?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxib29rcyUyMHN3YXAlMjBleGNoYW5nZXxlbnwxfHx8fDE3NzAzODcxNTh8MA&ixlib=rb-4.1.0&q=80&w=1080",
-      status: "available",
-      uploaderName: "Johannes Fischer",
-      uploaderEmail: "johannes.fischer@example.com",
-    },
-  ]);
-
+  const [items, setItems] = useState<Item[]>([]);
   const [chats, setChats] = useState<Chat[]>([]);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  // Load user session from localStorage on mount
+  // Check for existing session on mount
   useEffect(() => {
-    const savedUser = localStorage.getItem("sharingHubCurrentUser");
-    if (savedUser) {
-      try {
-        const user = JSON.parse(savedUser);
-        setCurrentUser(user);
-        setCurrentScreen("selection");
-      } catch (e) {
-        console.error("Failed to load user session", e);
+    const checkSession = async () => {
+      const savedUser = localStorage.getItem("sharingHubCurrentUser");
+      const accessToken = api.getAccessToken();
+      
+      console.log("🔍 Checking session...");
+      console.log("  - Saved user:", savedUser);
+      console.log("  - Access token:", accessToken ? accessToken.substring(0, 20) + "..." : "null");
+      
+      if (savedUser && accessToken) {
+        try {
+          const user = JSON.parse(savedUser);
+          setCurrentUser(user);
+          setCurrentScreen("selection");
+          
+          // Load items and chats
+          await loadItems();
+          await loadChats();
+          
+          console.log("✅ Session restored successfully");
+        } catch (e) {
+          console.error("❌ Failed to restore session:", e);
+          localStorage.removeItem("sharingHubCurrentUser");
+          api.setAccessToken(null);
+        }
+      } else {
+        console.log("⚠️ No saved session found");
       }
-    }
+      setLoading(false);
+    };
+    
+    checkSession();
   }, []);
 
-  // Save user session to localStorage whenever it changes
-  useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem("sharingHubCurrentUser", JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem("sharingHubCurrentUser");
+  // Load items from backend
+  const loadItems = async () => {
+    try {
+      const fetchedItems = await api.getItems();
+      setItems(fetchedItems);
+    } catch (error: any) {
+      console.error("Failed to load items:", error);
+      toast.error("Failed to load items");
     }
-  }, [currentUser]);
+  };
 
-  // Load chats from localStorage on mount
-  useEffect(() => {
-    const savedChats = localStorage.getItem("sharingHubChats");
-    if (savedChats) {
-      try {
-        const parsed = JSON.parse(savedChats);
-        // Convert timestamp strings back to Date objects
-        const chatsWithDates = parsed.map((chat: Chat) => ({
-          ...chat,
-          messages: chat.messages.map((msg) => ({
-            ...msg,
-            timestamp: new Date(msg.timestamp),
-          })),
-        }));
-        setChats(chatsWithDates);
-      } catch (e) {
-        console.error("Failed to load chats from localStorage", e);
-      }
+  // Load chats from backend
+  const loadChats = async () => {
+    try {
+      const fetchedChats = await api.getChats();
+      // Convert timestamp strings to Date objects
+      const chatsWithDates = fetchedChats.map((chat: any) => ({
+        ...chat,
+        messages: chat.messages.map((msg: any) => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp),
+        })),
+      }));
+      setChats(chatsWithDates);
+    } catch (error: any) {
+      console.error("Failed to load chats:", error);
+      toast.error("Failed to load chats");
     }
-  }, []);
-
-  // Save chats to localStorage whenever they change
-  useEffect(() => {
-    if (chats.length > 0) {
-      localStorage.setItem("sharingHubChats", JSON.stringify(chats));
-    }
-  }, [chats]);
+  };
 
   // Handle login
-  const handleLogin = (name: string, email: string) => {
+  const handleLogin = async (name: string, email: string) => {
     setCurrentUser({ name, email });
+    localStorage.setItem("sharingHubCurrentUser", JSON.stringify({ name, email }));
     setCurrentScreen("selection");
+    
+    // Load items and chats after login
+    await loadItems();
+    await loadChats();
+    
     toast.success(`Welcome, ${name}!`);
   };
 
   // Handle logout
   const handleLogout = () => {
     setCurrentUser(null);
+    localStorage.removeItem("sharingHubCurrentUser");
+    api.signOut();
     setCurrentScreen("login");
     setSelectedCategory(null);
     setView("browse");
+    setItems([]);
+    setChats([]);
   };
 
   // Handle category selection
@@ -167,28 +142,36 @@ export default function App() {
   };
 
   // Handle add item
-  const handleAddItem = (newItem: {
+  const handleAddItem = async (newItem: {
     title: string;
     description: string;
     image: string;
+    images?: string[];
     securityDeposit?: number;
   }) => {
     if (!currentUser || !selectedCategory) return;
 
-    const item: Item = {
-      id: Date.now().toString(),
-      type: selectedCategory,
-      ...newItem,
-      status: "available",
-      uploaderName: currentUser.name,
-      uploaderEmail: currentUser.email,
-    };
-    setItems([item, ...items]);
-    setView("browse");
-    toast.success("Item published successfully!");
-    
-    // Simulate email notification
-    toast.info(`📧 Email sent to ${currentUser.email}: Your item "${item.title}" has been posted!`);
+    try {
+      const createdItem = await api.createItem({
+        type: selectedCategory,
+        title: newItem.title,
+        description: newItem.description,
+        image: newItem.image,
+        images: newItem.images || [newItem.image],
+        securityDeposit: newItem.securityDeposit,
+        uploaderName: currentUser.name,
+      });
+
+      setItems([createdItem, ...items]);
+      setView("browse");
+      toast.success("Item published successfully!");
+      
+      // Simulate email notification
+      toast.info(`📧 Email sent to ${currentUser.email}: Your item "${createdItem.title}" has been posted!`);
+    } catch (error: any) {
+      console.error("Failed to create item:", error);
+      toast.error("Failed to publish item. Please try again.");
+    }
   };
 
   // Handle select item
@@ -198,33 +181,40 @@ export default function App() {
   };
 
   // Handle claim item
-  const handleClaimItem = (itemId: string) => {
+  const handleClaimItem = async (itemId: string) => {
     if (!currentUser) return;
 
     const item = items.find((i) => i.id === itemId);
     if (!item) return;
 
-    setItems(
-      items.map((i) =>
-        i.id === itemId
-          ? { ...i, status: "claimed", claimedBy: currentUser.name }
-          : i
-      )
-    );
-    
-    toast.success(`Item claimed successfully!`);
-    
-    // Simulate email notifications to both parties
-    setTimeout(() => {
-      toast.info(`📧 Email sent to ${currentUser.email}: You've claimed "${item.title}"`);
-    }, 500);
-    setTimeout(() => {
-      toast.info(`📧 Email sent to ${item.uploaderEmail}: ${currentUser.name} claimed your item "${item.title}"`);
-    }, 1000);
+    try {
+      await api.updateItem(itemId, { status: "claimed", claimedBy: currentUser.name });
+
+      setItems(
+        items.map((i) =>
+          i.id === itemId
+            ? { ...i, status: "claimed", claimedBy: currentUser.name }
+            : i
+        )
+      );
+      
+      toast.success(`Item claimed successfully!`);
+      
+      // Simulate email notifications to both parties
+      setTimeout(() => {
+        toast.info(`📧 Email sent to ${currentUser.email}: You've claimed "${item.title}"`);
+      }, 500);
+      setTimeout(() => {
+        toast.info(`📧 Email sent to ${item.uploaderEmail}: ${currentUser.name} claimed your item "${item.title}"`);
+      }, 1000);
+    } catch (error: any) {
+      console.error("Failed to claim item:", error);
+      toast.error("Failed to claim item. Please try again.");
+    }
   };
 
   // Handle start chat
-  const handleStartChat = (item: Item) => {
+  const handleStartChat = async (item: Item) => {
     if (!currentUser) return;
 
     // Check if chat already exists
@@ -239,23 +229,29 @@ export default function App() {
 
     if (!chat) {
       // Create new chat
-      chat = {
-        id: Date.now().toString(),
-        itemId: item.id,
-        itemTitle: item.title,
-        participants: {
-          uploader: {
-            name: item.uploaderName,
-            email: item.uploaderEmail,
+      try {
+        const newChat = await api.createChat({
+          itemId: item.id,
+          itemTitle: item.title,
+          participants: {
+            uploader: {
+              name: item.uploaderName,
+              email: item.uploaderEmail,
+            },
+            requester: {
+              name: currentUser.name,
+              email: currentUser.email,
+            },
           },
-          requester: {
-            name: currentUser.name,
-            email: currentUser.email,
-          },
-        },
-        messages: [],
-      };
-      setChats([...chats, chat]);
+        });
+        
+        chat = newChat;
+        setChats([...chats, chat]);
+      } catch (error: any) {
+        console.error("Failed to create chat:", error);
+        toast.error("Failed to start chat. Please try again.");
+        return;
+      }
     }
 
     setSelectedChat(chat);
@@ -264,40 +260,39 @@ export default function App() {
   };
 
   // Handle send message
-  const handleSendMessage = (chatId: string, messageText: string) => {
+  const handleSendMessage = async (chatId: string, messageText: string) => {
     if (!currentUser) return;
 
     const chat = chats.find((c) => c.id === chatId);
     if (!chat) return;
 
-    const message: ChatMessage = {
-      id: Date.now().toString(),
-      senderId: currentUser.email,
-      senderName: currentUser.name,
-      message: messageText,
-      timestamp: new Date(),
-    };
+    try {
+      const newMessage = await api.addMessage(chatId, messageText, currentUser.email, currentUser.name);
+      
+      const message: ChatMessage = {
+        ...newMessage,
+        timestamp: new Date(newMessage.timestamp),
+      };
 
-    setChats(
-      chats.map((c) =>
-        c.id === chatId
-          ? { ...c, messages: [...c.messages, message] }
-          : c
-      )
-    );
-
-    // Get the other participant's email
-    const otherUser =
-      chat.participants.uploader.email === currentUser.email
-        ? chat.participants.requester
-        : chat.participants.uploader;
-
-    // Simulate email notification to the other party
-    setTimeout(() => {
-      toast.info(
-        `📧 Email sent to ${otherUser.email}: New message from ${currentUser.name} about "${chat.itemTitle}"`
+      setChats(
+        chats.map((c) =>
+          c.id === chatId
+            ? { ...c, messages: [...c.messages, message] }
+            : c
+        )
       );
-    }, 500);
+
+      // Get the other participant's email
+      const otherUser =
+        chat.participants.uploader.email === currentUser.email
+          ? chat.participants.requester
+          : chat.participants.uploader;
+
+      // Email notification logged from backend
+    } catch (error: any) {
+      console.error("Failed to send message:", error);
+      toast.error("Failed to send message. Please try again.");
+    }
   };
 
   // Get user's chats
