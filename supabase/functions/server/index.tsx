@@ -5,8 +5,21 @@ import * as kv from "./kv_store.tsx";
 
 const app = new Hono();
 
+// Log startup
+console.log("🚀 Server starting...");
+console.log("📊 Environment check:");
+console.log(`  SUPABASE_URL: ${Deno.env.get("SUPABASE_URL") ? "✅ Set" : "❌ Missing"}`);
+console.log(`  SUPABASE_SERVICE_ROLE_KEY: ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ? "✅ Set" : "❌ Missing"}`);
+
 // Enable logger
 app.use('*', logger(console.log));
+
+// Global error handler
+app.onError((err, c) => {
+  console.error("🔥 Unhandled error:", err);
+  console.error("🔥 Error stack:", err.stack);
+  return c.json({ error: err.message || "Internal server error" }, 500);
+});
 
 // Enable CORS for all routes and methods
 app.use(
